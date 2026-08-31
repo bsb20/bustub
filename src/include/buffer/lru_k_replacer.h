@@ -64,7 +64,6 @@ class LRUKReplacer : public SimpleReplacer {
 
   auto Evict() -> std::optional<frame_id_t> override;
 
-
   /**
    * @brief Records an access to `frame_id`. `page_id` is part of the interface and
    * available to every replacer (ARC keys its ghost history on it), but LRU-K tracks

@@ -45,7 +45,7 @@ class SimpleReplacer {
    * @param page_id and @param access_type may not be used by all replacers (such as LRU-k)
    * but this information is made available for optional replacer optimizations.
    * If these fields are not used, the overloads below choose sensible defaults.
-   * 
+   *
    */
   virtual void RecordAccess(frame_id_t frame_id, page_id_t page_id, AccessType access_type) = 0;
 
