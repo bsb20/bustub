@@ -12,40 +12,57 @@
 
 #pragma once
 
-#include <list>
 #include <mutex>  // NOLINT
+#include <optional>
 #include <vector>
 
-#include "buffer/replacer.h"
+#include "buffer/simple_replacer.h"
 #include "common/config.h"
+#include "common/macros.h"
 
 namespace bustub {
 
 /**
- * ClockReplacer implements the clock replacement policy, which approximates the Least Recently Used policy.
+ * ClockReplacer implements the CLOCK (a.k.a. second-chance) replacement policy,
+ * which approximates LRU with a single reference bit per frame and a rotating
+ * "hand". It is a `SimpleReplacer`, so a `BufferPoolManager` can use it in place
+ * of `LRUKReplacer` (request it by name through `MakeReplacer`; see
+ * "buffer/replacer_factory.h").
  *
- * @deprecated Legacy replacer on the old `Replacer` interface (`Victim`/`Pin`/
- * `Unpin`), NOT compatible with `BufferPoolManager`, which now expects a
- * `SimpleReplacer` (`Evict`/`RecordAccess`/`SetEvictable`/`Remove`). Prefer
- * `LRUKReplacer` or `ArcReplacer`; port this onto `SimpleReplacer` before wiring
- * it into the buffer pool.
+ * This replacer is not part of the graded Project 1 assignment; it is provided as
+ * an alternative eviction policy.
  */
-class ClockReplacer : public Replacer {
+class ClockReplacer : public SimpleReplacer {
  public:
-  explicit ClockReplacer(size_t num_pages);
+  using SimpleReplacer::RecordAccess;  // unhide overloads
 
-  ~ClockReplacer() override;
+  explicit ClockReplacer(size_t num_frames);
 
-  auto Victim(frame_id_t *frame_id) -> bool override;
+  DISALLOW_COPY_AND_MOVE(ClockReplacer);
 
-  void Pin(frame_id_t frame_id) override;
+  ~ClockReplacer() override = default;
 
-  void Unpin(frame_id_t frame_id) override;
-
+  auto Evict() -> std::optional<frame_id_t> override;
+  void RecordAccess(frame_id_t frame_id, page_id_t page_id, AccessType access_type) override;
+  void SetEvictable(frame_id_t frame_id, bool set_evictable) override;
+  void Remove(frame_id_t frame_id) override;
   auto Size() -> size_t override;
 
  private:
-  // TODO(student): implement me!
+  // TODO(student): implement me! You can replace or remove these member variables as you like.
+  /** Whether the frame is currently tracked by the replacer. */
+  std::vector<bool> present_;
+  /** Whether the frame may be selected for eviction (counts toward `Size`). */
+  std::vector<bool> evictable_;
+  /** The CLOCK reference ("second chance") bit for each frame. */
+  std::vector<bool> ref_;
+  /** Number of frames the replacer can track; frame ids are in [0, num_frames_). */
+  [[maybe_unused]] size_t num_frames_;
+  /** Number of evictable frames. */
+  [[maybe_unused]] size_t curr_size_{0};
+  /** The rotating clock hand. */
+  [[maybe_unused]] frame_id_t hand_{0};
+  std::mutex latch_;
 };
 
 }  // namespace bustub

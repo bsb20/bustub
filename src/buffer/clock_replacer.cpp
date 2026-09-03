@@ -15,22 +15,41 @@
 namespace bustub {
 
 /**
- * Create a new ClockReplacer.
- * @param num_pages the maximum number of pages the ClockReplacer will be required to store
+ * @brief a new ClockReplacer.
+ * @param num_frames the maximum number of frames the ClockReplacer will be required to store
  */
-ClockReplacer::ClockReplacer(size_t num_pages) {}
+ClockReplacer::ClockReplacer(size_t num_frames)
+    : present_(num_frames, false), evictable_(num_frames, false), ref_(num_frames, false), num_frames_(num_frames) {}
 
 /**
- * Destroys the ClockReplacer.
+ * @brief Find a frame to evict using the CLOCK (second-chance) policy.
+ * @return the id of the evicted frame, or std::nullopt if no frame can be evicted.
  */
-ClockReplacer::~ClockReplacer() = default;
+auto ClockReplacer::Evict() -> std::optional<frame_id_t> { return std::nullopt; }
 
-auto ClockReplacer::Victim(frame_id_t *frame_id) -> bool { return false; }
+/**
+ * @brief Record an access to `frame_id`, setting its reference bit.
+ *
+ * @param frame_id id of frame that received a new access.
+ * @param page_id id of the page held by the frame. Available to every replacer, not needed by CLOCK.
+ * @param access_type type of access. Not needed by CLOCK.
+ */
+void ClockReplacer::RecordAccess(frame_id_t frame_id, [[maybe_unused]] page_id_t page_id,
+                                 [[maybe_unused]] AccessType access_type) {}
 
-void ClockReplacer::Pin(frame_id_t frame_id) {}
+/**
+ * @brief Toggle whether a tracked frame is a candidate for eviction.
+ */
+void ClockReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {}
 
-void ClockReplacer::Unpin(frame_id_t frame_id) {}
+/**
+ * @brief Stop tracking `frame_id` entirely, regardless of its reference bit.
+ */
+void ClockReplacer::Remove(frame_id_t frame_id) {}
 
+/**
+ * @brief Return the number of evictable frames.
+ */
 auto ClockReplacer::Size() -> size_t { return 0; }
 
 }  // namespace bustub

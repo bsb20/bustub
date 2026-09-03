@@ -17,6 +17,7 @@
 #include <string>
 #include <string_view>
 
+#include "buffer/clock_replacer.h"
 #include "buffer/lru_k_replacer.h"
 #include "buffer/simple_replacer.h"
 
@@ -31,6 +32,8 @@ namespace bustub {
  *
  *   "LRU-K"       LRU-K, the replacer graded in Project 1. Used by every test and
  *                 by the buffer pool's default construction.
+ *   "CLOCK"       The CLOCK (second-chance) approximation of LRU. Not graded;
+ *                 available as an alternative eviction policy.
  *   "leaderboard" The policy the leaderboard benchmarks request. It uses LRU-K as
  *                 well, until you write a faster replacer: derive it from
  *                 SimpleReplacer, define it above (or in arc_replacer.*), and
@@ -43,6 +46,11 @@ inline auto MakeReplacer(std::string_view policy, size_t num_frames, size_t k) -
   if (policy == "LRU-K") {
     // The LRU-K replacer graded in Project 1.
     return std::make_shared<LRUKReplacer>(num_frames, k);
+  }
+
+  if (policy == "CLOCK") {
+    // CLOCK (second-chance) approximation of LRU. Does not use `k`.
+    return std::make_shared<ClockReplacer>(num_frames);
   }
 
   if (policy == "leaderboard") {

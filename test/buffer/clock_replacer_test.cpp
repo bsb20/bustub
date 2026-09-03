@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cstdio>
+#include <optional>
 #include <thread>  // NOLINT
 #include <vector>
 
@@ -22,41 +23,34 @@ namespace bustub {
 TEST(ClockReplacerTest, DISABLED_SampleTest) {
   ClockReplacer clock_replacer(7);
 
-  // Scenario: unpin six elements, i.e. add them to the replacer.
-  clock_replacer.Unpin(1);
-  clock_replacer.Unpin(2);
-  clock_replacer.Unpin(3);
-  clock_replacer.Unpin(4);
-  clock_replacer.Unpin(5);
-  clock_replacer.Unpin(6);
-  clock_replacer.Unpin(1);
+  // Scenario: add six frames to the replacer as evictable. Recording an access sets each frame's
+  // reference ("second chance") bit; marking it evictable makes it a candidate for eviction.
+  for (frame_id_t f = 1; f <= 6; f++) {
+    clock_replacer.RecordAccess(f);
+    clock_replacer.SetEvictable(f, true);
+  }
+  clock_replacer.RecordAccess(1);  // a second access to frame 1 (its reference bit is already set)
   EXPECT_EQ(6, clock_replacer.Size());
 
   // Scenario: get three victims from the clock.
-  int value;
-  clock_replacer.Victim(&value);
-  EXPECT_EQ(1, value);
-  clock_replacer.Victim(&value);
-  EXPECT_EQ(2, value);
-  clock_replacer.Victim(&value);
-  EXPECT_EQ(3, value);
+  EXPECT_EQ(1, clock_replacer.Evict());
+  EXPECT_EQ(2, clock_replacer.Evict());
+  EXPECT_EQ(3, clock_replacer.Evict());
 
-  // Scenario: pin elements in the replacer.
-  // Note that 3 has already been victimized, so pinning 3 should have no effect.
-  clock_replacer.Pin(3);
-  clock_replacer.Pin(4);
+  // Scenario: pin frames in the replacer (mark them non-evictable).
+  // Note that 3 has already been evicted, so pinning 3 should have no effect.
+  clock_replacer.SetEvictable(3, false);
+  clock_replacer.SetEvictable(4, false);
   EXPECT_EQ(2, clock_replacer.Size());
 
-  // Scenario: unpin 4. We expect that the reference bit of 4 will be set to 1.
-  clock_replacer.Unpin(4);
+  // Scenario: unpin 4. We expect that the reference bit of 4 will be set.
+  clock_replacer.RecordAccess(4);
+  clock_replacer.SetEvictable(4, true);
 
   // Scenario: continue looking for victims. We expect these victims.
-  clock_replacer.Victim(&value);
-  EXPECT_EQ(5, value);
-  clock_replacer.Victim(&value);
-  EXPECT_EQ(6, value);
-  clock_replacer.Victim(&value);
-  EXPECT_EQ(4, value);
+  EXPECT_EQ(5, clock_replacer.Evict());
+  EXPECT_EQ(6, clock_replacer.Evict());
+  EXPECT_EQ(4, clock_replacer.Evict());
 }
 
 }  // namespace bustub
