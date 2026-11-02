@@ -34,7 +34,7 @@ class MoveBlocked {
   MoveBlocked(const MoveBlocked &) = delete;
   MoveBlocked(MoveBlocked &&that) noexcept {
     if (!that.waited_) {
-      that.wait_.get();
+      static_cast<void>(that.wait_.get());
     }
     that.waited_ = waited_ = true;
   }
@@ -42,7 +42,7 @@ class MoveBlocked {
   auto operator=(const MoveBlocked &) -> MoveBlocked & = delete;
   auto operator=(MoveBlocked &&that) noexcept -> MoveBlocked & {
     if (!that.waited_) {
-      that.wait_.get();
+      static_cast<void>(that.wait_.get());
     }
     that.waited_ = waited_ = true;
     return *this;
