@@ -2,102 +2,31 @@
 //
 //                         BusTub
 //
-// txn_abort_serializable_test.cpp
+// txn_abort_test.cpp
 //
-// Identification: test/txn/txn_abort_serializable_test.cpp
+// Identification: test/txn/txn_abort_test.cpp
 //
 // Copyright (c) 2015-2025, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
+#include <chrono>  // NOLINT
+#include <exception>
+#include <memory>
+#include <mutex>  // NOLINT
+#include <random>
+#include <string>
+#include <thread>  // NOLINT
 #include "common/bustub_instance.h"
+#include "common/macros.h"
 #include "concurrency/transaction.h"
+#include "execution/execution_common.h"
 #include "fmt/core.h"
 #include "txn_common.h"  // NOLINT
 
 namespace bustub {
 
 // NOLINTBEGIN(bugprone-unchecked-optional-access)
-
-TEST(TxnSerializableTest, DISABLED_SerializableTest) {  // NOLINT
-  fmt::println(stderr, "--- SerializableTest2: Serializable ---");
-  {
-    auto bustub = std::make_unique<BusTubInstance>();
-    EnsureIndexScan(*bustub);
-    Execute(*bustub, "CREATE TABLE maintable(a int, b int primary key)");
-    auto table_info = bustub->catalog_->GetTable("maintable");
-    auto txn1 = BeginTxnSerializable(*bustub, "txn1");
-    WithTxn(txn1,
-            ExecuteTxn(*bustub, _var, _txn, "INSERT INTO maintable VALUES (1, 100), (1, 101), (0, 102), (0, 103)"));
-    WithTxn(txn1, CommitTxn(*bustub, _var, _txn));
-
-    auto txn2 = BeginTxnSerializable(*bustub, "txn2");
-    auto txn3 = BeginTxnSerializable(*bustub, "txn3");
-    auto txn_read = BeginTxnSerializable(*bustub, "txn_read");
-    WithTxn(txn2, ExecuteTxn(*bustub, _var, _txn, "UPDATE maintable SET a = 0 WHERE a = 1"));
-    WithTxn(txn3, ExecuteTxn(*bustub, _var, _txn, "UPDATE maintable SET a = 1 WHERE a = 0"));
-    TxnMgrDbg("after two updates", bustub->txn_manager_.get(), table_info.get(), table_info->table_.get());
-    WithTxn(txn_read, ExecuteTxn(*bustub, _var, _txn, "SELECT * FROM maintable WHERE a = 0"));
-    WithTxn(txn2, CommitTxn(*bustub, _var, _txn));
-    WithTxn(txn3, CommitTxn(*bustub, _var, _txn, EXPECT_FAIL));
-    WithTxn(txn_read, CommitTxn(*bustub, _var, _txn));
-    // test continues on Gradescope...
-  }
-}
-
-TEST(TxnSerializableTest, DISABLED_ConcurrentSerializableTest) {  // NOLINT
-  fmt::println(stderr, "--- SerializableTest2: Concurrent Serializable ---");
-  {
-    for (int i = 0; i < 10; i++) {
-      auto bustub = std::make_unique<BusTubInstance>();
-      EnsureIndexScan(*bustub);
-      Execute(*bustub, "CREATE TABLE maintable(a int, b int primary key)");
-      auto table_info = bustub->catalog_->GetTable("maintable");
-      auto txn1 = BeginTxnSerializable(*bustub, "txn1");
-      std::string query = "INSERT INTO maintable VALUES ";
-      for (int i = 0; i < 1000; i++) {
-        auto str_value = std::to_string(i + 1000);
-        query += i == 0 ? "(1," + str_value + ")" : ", (1," + str_value + ")";
-        auto str_value2 = std::to_string(i + 2000);
-        query += ", (0, " + str_value2 + ")";
-      }
-      WithTxn(txn1, ExecuteTxn(*bustub, _var, _txn, query));
-      WithTxn(txn1, CommitTxn(*bustub, _var, _txn));
-
-      auto txn2 = BeginTxnSerializable(*bustub, "txn2");
-      auto txn3 = BeginTxnSerializable(*bustub, "txn3");
-      WithTxn(txn3, ExecuteTxn(*bustub, _var, _txn, "UPDATE maintable SET a = 1 WHERE a = 0"));
-      WithTxn(txn2, ExecuteTxn(*bustub, _var, _txn, "UPDATE maintable SET a = 0 WHERE a = 1"));
-      TxnMgrDbg("after two updates", bustub->txn_manager_.get(), table_info.get(), table_info->table_.get());
-
-      std::vector<std::thread> commit_threads;
-      const int thread_cnt = 2;
-      commit_threads.reserve(thread_cnt);
-      int success_cnt = 0;
-      std::mutex result_mutex;
-
-      commit_threads.emplace_back([txn2, &bustub, &result_mutex, &success_cnt]() {
-        auto res = bustub->txn_manager_->Commit(txn2);
-        {
-          std::lock_guard<std::mutex> lck(result_mutex);
-          success_cnt += static_cast<int>(res);
-        }
-      });
-      commit_threads.emplace_back([txn3, &bustub, &result_mutex, &success_cnt]() {
-        auto res = bustub->txn_manager_->Commit(txn3);
-        {
-          std::lock_guard<std::mutex> lck(result_mutex);
-          success_cnt += static_cast<int>(res);
-        }
-      });
-
-      for (auto &&thread : commit_threads) {
-        thread.join();
-      }
-      EXPECT_EQ(success_cnt, 1);
-    }
-  }
-}
 
 TEST(TxnAbortTest, DISABLED_SimpleAbortTest) {  // NOLINT
   fmt::println(stderr, "--- SimpleAbortTest: Setup without primary key ---");
@@ -213,6 +142,100 @@ TEST(TxnAbortTest, DISABLED_AbortIndexTest) {  // NOLINT
     // test continues on Gradescope...
   }
 }
+
+TEST(TxnAbortTest, DISABLED_IndexConcurrentUpdateAbortTest) {  // NOLINT
+  const auto generate_sql = [](int n) -> std::string {
+    return fmt::format("UPDATE maintable SET b = b + {} WHERE a = {}", 1, n);
+  };
+  const int thread_cnt = 8;
+  const int number_cnt = 5;
+  const auto generate_insert_sql = [](int n) -> std::string {
+    std::vector<std::string> data;
+    data.reserve(n);
+    for (int i = 0; i < n; i++) {
+      data.push_back(fmt::format("({}, {})", i, 0));
+    }
+    return fmt::format("INSERT INTO maintable VALUES {}", fmt::join(data, ","));
+  };
+  const int trials = 10;
+  const int operation_cnt = 100;
+  for (int n = 0; n < trials; n++) {
+    auto bustub = std::make_unique<BusTubInstance>();
+    EnsureIndexScan(*bustub);
+    Execute(*bustub, "CREATE TABLE maintable(a int primary key, b int)");
+    std::vector<std::thread> update_threads;
+    Execute(*bustub, generate_insert_sql(number_cnt), false);
+    TableHeapEntryNoMoreThan(*bustub, bustub->catalog_->GetTable("maintable").get(), number_cnt);
+    update_threads.reserve(thread_cnt);
+    std::map<int, std::vector<int>> operation_result;
+    std::mutex result_mutex;
+    fmt::println(stderr, "trial {}: running with {} threads with {} rows ", n + 1, thread_cnt, number_cnt);
+    global_disable_execution_exception_print.store(true);
+    for (int thread = 0; thread < thread_cnt; thread++) {
+      update_threads.emplace_back([&bustub, thread, generate_sql, &result_mutex, &operation_result]() {
+        NoopWriter writer;
+        std::vector<int> result(number_cnt, 0);
+        std::random_device dev;
+        std::mt19937 rng(dev());
+        std::uniform_int_distribution<std::mt19937::result_type> dist(0, number_cnt - 1);
+        for (int i = 0; i < operation_cnt; i++) {
+          int x = 0;
+          int y = 0;
+          do {
+            x = dist(rng);
+            y = dist(rng);
+          } while (x == y);
+          auto *txn = bustub->txn_manager_->Begin();
+          auto sql = generate_sql(x);
+          if (!bustub->ExecuteSqlTxn(sql, writer, txn)) {
+            bustub->txn_manager_->Abort(txn);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+          }
+          sql = generate_sql(y);
+          if (!bustub->ExecuteSqlTxn(sql, writer, txn)) {
+            bustub->txn_manager_->Abort(txn);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+          }
+          BUSTUB_ENSURE(bustub->txn_manager_->Commit(txn), "cannot commit??");
+          result[x] += 1;
+          result[y] += 1;
+        }
+        {
+          std::lock_guard<std::mutex> lck(result_mutex);
+          operation_result.emplace(thread, std::move(result));
+        }
+      });
+    }
+    for (auto &&thread : update_threads) {
+      thread.join();
+    }
+    global_disable_execution_exception_print.store(false);
+    std::vector<std::vector<int>> expected_rows;
+    for (int i = 0; i < number_cnt; i++) {
+      int total = 0;
+      for (int j = 0; j < thread_cnt; j++) {
+        total += operation_result[j][i];
+      }
+      expected_rows.push_back({i, total});
+      if (total < 10) {
+        fmt::println(stderr, "abort rate too high, {} txn succeeded", total);
+        std::terminate();
+      }
+    }
+    auto table_info = bustub->catalog_->GetTable("maintable");
+    auto query_txn = BeginTxn(*bustub, "query_txn");
+    WithTxn(query_txn, QueryShowResult(*bustub, _var, _txn, "SELECT * FROM maintable", expected_rows));
+    TableHeapEntryNoMoreThan(*bustub, table_info.get(), number_cnt);
+    if (n >= trials - 2) {
+      SimpleStreamWriter writer(std::cerr);
+      fmt::println(stderr, "--- the following data might be manually inspected by TAs ---");
+      bustub->ExecuteSqlTxn("SELECT * FROM maintable", writer, query_txn);
+    }
+  }
+}
+
 // NOLINTEND(bugprone-unchecked-optional-access))
 
 }  // namespace bustub

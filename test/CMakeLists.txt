@@ -48,6 +48,26 @@ foreach (bustub_test_source ${BUSTUB_TEST_SOURCES})
             )
 endforeach ()
 
+# #########################################
+# "make test-p4" (required: Tasks 1-3)
+# "make test-p4-bonus1" (Bonus 1: primary key index)
+# "make test-p4-bonus2" (Bonus 2: abort)
+# #########################################
+add_custom_target(test-p4
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R "^(TxnTsTest|TxnScanTest|TxnExecutorTest)\\."
+        VERBATIM)
+add_dependencies(test-p4 txn_timestamp_test txn_scan_test txn_executor_test)
+
+add_custom_target(test-p4-bonus1
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R "^TxnIndexTest\\."
+        VERBATIM)
+add_dependencies(test-p4-bonus1 txn_index_test txn_index_concurrent_test)
+
+add_custom_target(test-p4-bonus2
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -R "^TxnAbortTest\\."
+        VERBATIM)
+add_dependencies(test-p4-bonus2 txn_abort_test)
+
 set(BUSTUB_SLT_SOURCES
         "${PROJECT_SOURCE_DIR}/test/sql/p0.01-lower-upper.slt"
         "${PROJECT_SOURCE_DIR}/test/sql/p0.02-function-error.slt"
